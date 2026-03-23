@@ -1855,6 +1855,8 @@ version = "0.1.0"
 dependencies = [
  "duckdb",
  "polars",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
