@@ -1,0 +1,1 @@
+SELECT * FROM read_parquet('data/cenagro-2011-parcelas-aprovechamiento-tierra.parquet')
