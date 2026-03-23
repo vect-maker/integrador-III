@@ -16,7 +16,7 @@ layout {
     } 
   }
   tab name="DuckSQL" {
-    pane name="Console" command="duckdb" {
+    pane name="Console" command="duckdb" args="cenagro.duckdb" {
          
     }
   }
