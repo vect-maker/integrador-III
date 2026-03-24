@@ -40,19 +40,45 @@ fn create_db(
     lf_parcels: LazyFrame,
     _farms_metadata: &SPSSMetadata,
     _parcels_metadata: &SPSSMetadata,
-) {
+) -> Result<(), Box<dyn Error>> {
+    // Composite key
     let composite_key = ["S101", "S102", "S105", "S106", "S108"];
+    let composite_key_parsing = [
+        col("S101").cast(DataType::UInt16),
+        col("S102").cast(DataType::UInt16),
+        col("S105").cast(DataType::UInt32),
+        col("S106").cast(DataType::UInt32),
+        col("S108").cast(DataType::UInt32),
+    ];
+
+    // Transform farms '
+
+    let mut lf_farms = lf_farms
+        .with_columns(&composite_key_parsing)
+        .select([
+            col("S101"),
+            col("S102"),
+            col("S105"),
+            col("S106"),
+            col("S108"),
+            col("S1273"),
+        ])
+        .collect()?;
+
+    // save parcels to file
+    let farms_output = resolve_data_folder("farms-01.parquet");
+    let farms_outpath = PlRefPath::new(farms_output);
+
+    let file = File::create(farms_outpath).expect("Failed to create file");
+
+    //  Serialize the in-memory DataFrame to disk
+    ParquetWriter::new(file)
+        .with_compression(ParquetCompression::Zstd(None))
+        .finish(&mut lf_farms)?;
 
     // Transform parcels
-
     let mut lf_parcels = lf_parcels
-        .with_columns([
-            col("S101").cast(DataType::UInt16),
-            col("S102").cast(DataType::UInt16),
-            col("S105").cast(DataType::UInt32),
-            col("S106").cast(DataType::UInt32),
-            col("S108").cast(DataType::UInt32),
-        ])
+        .with_columns(&composite_key_parsing)
         .group_by(composite_key)
         .agg([
             col("S434").count().alias("total_parcels"),
@@ -74,8 +100,7 @@ fn create_db(
             + col("mz_infrastructure")
             + col("mz_unusable"))
         .alias("total_farm_manzanas")])
-        .collect()
-        .expect("Could not process the pacrcel dataframe");
+        .collect()?;
 
     // save parcels to file
     let parcels_output = resolve_data_folder("parcels-01.parquet");
@@ -86,8 +111,9 @@ fn create_db(
     // 3. Serialize the in-memory DataFrame to disk
     ParquetWriter::new(file)
         .with_compression(ParquetCompression::Zstd(None))
-        .finish(&mut lf_parcels)
-        .expect("Could not save file");
+        .finish(&mut lf_parcels)?;
+
+    Ok(())
 }
 fn load_metadata(file_path: &str) -> SPSSMetadata {
     let file = File::open(file_path).expect("Could not find the metadata file");
@@ -124,7 +150,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         lf_parcels,
         &farms_metadata,
         &parcels_metadata,
-    );
+    )?;
 
     Ok(())
 }
