@@ -3,9 +3,13 @@ use serde::Deserialize;
 use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
+use std::path::{Path, PathBuf};
 
 const FARMS_METADATA: &str = "cenagro-2011-explotaciones-agropecuarias-metadata.json";
 const PARCELS_METADATA: &str = "cenagro-2011-parcelas-aprovechamiento-tierra-metadata.json";
+const FARMS_RAW: &str = "cenagro-2011-explotaciones-agropecuarias.parquet";
+const PARCELS_RAW: &str = "cenagro-2011-parcelas-aprovechamiento-tierra.parquet";
+const COMPOSITE_KEY: [&str; 5] = ["S101", "S102", "S105", "S106", "S108"];
 
 #[derive(Deserialize, Debug)]
 struct SPSSMetadata {
@@ -13,62 +17,32 @@ struct SPSSMetadata {
     column_names_to_labels: serde_json::Value,
 }
 
-fn load_data() -> (LazyFrame, LazyFrame) {
-    let explotaciones_agropecuarias_file = "data/cenagro-2011-explotaciones-agropecuarias.parquet";
-    let parcelas_aprovechamiento_tierra_file =
-        "data/cenagro-2011-parcelas-aprovechamiento-tierra.parquet";
+fn load_data(file_name: &str) -> LazyFrame {
+    let file_path = resolve_data_folder(file_name);
+    let file_path =
+        PlRefPath::try_from_pathbuf(file_path).expect("could not parse path to polars format");
 
-    let lf_farms: LazyFrame =
-        LazyFrame::scan_parquet(explotaciones_agropecuarias_file.into(), Default::default())
-            .expect("Could not load farms data");
-    let lf_parcels: LazyFrame = LazyFrame::scan_parquet(
-        parcelas_aprovechamiento_tierra_file.into(),
-        Default::default(),
-    )
-    .expect("Could not load parcels data");
-
-    (lf_farms, lf_parcels)
+    LazyFrame::scan_parquet(file_path, Default::default()).expect("Could not load parcels data")
 }
 
-fn create_db(
-    lf_farms: LazyFrame,
-    lf_parcels: LazyFrame,
-    _farms_metadata: &SPSSMetadata,
-    _parcels_metadata: &SPSSMetadata,
-) -> Result<(), Box<dyn Error>> {
-    // Composite key
-    let composite_key = ["S101", "S102", "S105", "S106", "S108"];
-    let composite_key_parsing = [
-        col("S101").cast(DataType::UInt16),
-        col("S102").cast(DataType::UInt16),
-        col("S105").cast(DataType::UInt32),
-        col("S106").cast(DataType::UInt32),
-        col("S108").cast(DataType::UInt32),
-    ];
+fn transform_farms(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
+    let lf = transform_composite_key(lf);
+    lf.select([
+        col("S101"),
+        col("S102"),
+        col("S105"),
+        col("S106"),
+        col("S108"),
+        col("S1273"),
+        col("S1274"),
+        col("^S1275.*$"),
+    ])
+    .with_columns([col("S1273").eq(1)])
+}
 
-    // Transform farms '
-
-    let mut lf_farms = lf_farms
-        .with_columns(&composite_key_parsing)
-        .select([
-            col("S101"),
-            col("S102"),
-            col("S105"),
-            col("S106"),
-            col("S108"),
-            col("S1273"),
-            col("S1274"),
-            col("^S1275.*$"),
-        ])
-        .with_columns([col("S1273").eq(1)])
-        .collect()?;
-
-    save_parquet(&mut lf_farms, "farms.parquet")?;
-
-    // Transform parcels
-    let mut lf_parcels = lf_parcels
-        .with_columns(&composite_key_parsing)
-        .group_by(composite_key)
+fn transform_parcels(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
+    let lf = transform_composite_key(lf);
+    lf.group_by(COMPOSITE_KEY)
         .agg([
             col("S434").count().alias("total_parcels"),
             col("S434A").sum().alias("mz_annual_crops"),
@@ -89,18 +63,42 @@ fn create_db(
             + col("mz_infrastructure")
             + col("mz_unusable"))
         .alias("total_farm_manzanas")])
-        .collect()?;
+}
 
-    save_parquet(&mut lf_parcels, "parcels.parquet")?;
+fn transform_composite_key(lf: LazyFrame) -> LazyFrame {
+    let composite_key_parsing = [
+        col("S101").cast(DataType::UInt16),
+        col("S102").cast(DataType::UInt16),
+        col("S105").cast(DataType::UInt32),
+        col("S106").cast(DataType::UInt32),
+        col("S108").cast(DataType::UInt32),
+    ];
+
+    lf.with_columns(composite_key_parsing)
+}
+
+fn create_db(
+    lf_farms: LazyFrame,
+    lf_parcels: LazyFrame,
+    farms_metadata: &SPSSMetadata,
+    parcels_metadata: &SPSSMetadata,
+) -> Result<(), Box<dyn Error>> {
+    // Transform farms
+
+    let mut lf_farms = transform_farms(lf_farms, farms_metadata).collect()?;
+
+    save_parquet(&mut lf_farms, &resolve_data_folder("farms.parquet"))?;
+
+    // Transform parcels
+    let mut lf_parcels = transform_parcels(lf_parcels, parcels_metadata).collect()?;
+
+    save_parquet(&mut lf_parcels, &resolve_data_folder("parcels.parquet"))?;
 
     Ok(())
 }
 
-fn save_parquet(df: &mut DataFrame, file_name: &str) -> Result<(), Box<dyn Error>> {
-    let file_name = resolve_data_folder(file_name);
-    let out_path = PlRefPath::new(file_name);
-
-    let file = File::create(out_path).expect("Failed to create file");
+fn save_parquet(df: &mut DataFrame, file_path: &PathBuf) -> Result<(), Box<dyn Error>> {
+    let file = File::create(file_path).expect("Failed to create file");
 
     ParquetWriter::new(file)
         .with_compression(ParquetCompression::Zstd(None))
@@ -109,19 +107,22 @@ fn save_parquet(df: &mut DataFrame, file_name: &str) -> Result<(), Box<dyn Error
     Ok(())
 }
 
-fn load_metadata(file_path: &str) -> SPSSMetadata {
+fn load_metadata(file_path: &PathBuf) -> SPSSMetadata {
     let file = File::open(file_path).expect("Could not find the metadata file");
     let reader = BufReader::new(file);
     serde_json::from_reader(reader).expect("Could not parse the metadata")
 }
 
-fn resolve_data_folder(subpath: &str) -> String {
-    format!("data/{subpath}")
+fn resolve_data_folder<T: AsRef<Path>>(sub_path: T) -> PathBuf {
+    let prefix_path = Path::new("data");
+
+    prefix_path.join(sub_path.as_ref())
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Load data
-    let (lf_farms, lf_parcels) = load_data();
+    let lf_farms = load_data(FARMS_RAW);
+    let lf_parcels = load_data(PARCELS_RAW);
 
     // Load metadata
     let farms_metadata_path = resolve_data_folder(FARMS_METADATA);
