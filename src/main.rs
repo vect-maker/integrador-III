@@ -36,6 +36,8 @@ fn transform_farms(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
         col("S1273"),
         col("S1274"),
         col("^S1275.*$"),
+        col("S427"),
+        col("S428"),
     ])
     .with_columns([col("S1273").eq(1)])
 }
@@ -77,26 +79,6 @@ fn transform_composite_key(lf: LazyFrame) -> LazyFrame {
     lf.with_columns(composite_key_parsing)
 }
 
-fn create_db(
-    lf_farms: LazyFrame,
-    lf_parcels: LazyFrame,
-    farms_metadata: &SPSSMetadata,
-    parcels_metadata: &SPSSMetadata,
-) -> Result<(), Box<dyn Error>> {
-    // Transform farms
-
-    let mut lf_farms = transform_farms(lf_farms, farms_metadata).collect()?;
-
-    save_parquet(&mut lf_farms, &resolve_data_folder("farms.parquet"))?;
-
-    // Transform parcels
-    let mut lf_parcels = transform_parcels(lf_parcels, parcels_metadata).collect()?;
-
-    save_parquet(&mut lf_parcels, &resolve_data_folder("parcels.parquet"))?;
-
-    Ok(())
-}
-
 fn save_parquet(df: &mut DataFrame, file_path: &PathBuf) -> Result<(), Box<dyn Error>> {
     let file = File::create(file_path).expect("Failed to create file");
 
@@ -131,8 +113,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     let parcels_metadata_path = resolve_data_folder(PARCELS_METADATA);
     let parcels_metadata = load_metadata(&parcels_metadata_path);
 
-    // create db for analisis
-    create_db(lf_farms, lf_parcels, &farms_metadata, &parcels_metadata)?;
+    // Transform farms
+    let mut lf_farms = transform_farms(lf_farms, &farms_metadata).collect()?;
+    save_parquet(&mut lf_farms, &resolve_data_folder("farms.parquet"))?;
+
+    // Transform parcels
+    let mut lf_parcels = transform_parcels(lf_parcels, &parcels_metadata).collect()?;
+    save_parquet(&mut lf_parcels, &resolve_data_folder("parcels.parquet"))?;
 
     Ok(())
 }
