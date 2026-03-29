@@ -9,7 +9,13 @@ const FARMS_METADATA: &str = "cenagro-2011-explotaciones-agropecuarias-metadata.
 const PARCELS_METADATA: &str = "cenagro-2011-parcelas-aprovechamiento-tierra-metadata.json";
 const FARMS_RAW: &str = "cenagro-2011-explotaciones-agropecuarias.parquet";
 const PARCELS_RAW: &str = "cenagro-2011-parcelas-aprovechamiento-tierra.parquet";
-const COMPOSITE_KEY: [&str; 5] = ["S101", "S102", "S105", "S106", "S108"];
+const COMPOSITE_KEY: [&str; 5] = [
+    "department_id",
+    "municipality_id",
+    "census_segment_id",
+    "farm_id",
+    "legal_status_id",
+];
 
 #[derive(Deserialize, Debug)]
 struct SPSSMetadata {
@@ -27,34 +33,76 @@ fn load_data(file_name: &str) -> LazyFrame {
 
 fn transform_farms(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
     let lf = transform_composite_key(lf);
-    lf.select([
-        col("S101"),
-        col("S102"),
-        col("S105"),
-        col("S106"),
-        col("S108"),
+    let mut cols_to_select: Vec<Expr> = COMPOSITE_KEY.into_iter().map(col).collect();
+
+    cols_to_select.extend([
         col("S1273"),
         col("S1274"),
-        col("^S1275.*$"),
+        // Load source
+        col("^S1275.$"),
+        // end
         col("S427"),
         col("S428"),
-    ])
-    .with_columns([col("S1273").eq(1)])
+    ]);
+
+    lf.select(cols_to_select)
+        .with_columns([
+            col("S1275A").is_not_null().alias("loan_banco"),
+            col("S1275B").is_not_null().alias("loan_banco_produzcamos"),
+            col("S1275C").is_not_null().alias("loan_ong"),
+            col("S1275D").is_not_null().alias("loan_cooperativa"),
+            col("S1275E").is_not_null().alias("loan_gobierno"),
+            col("S1275F").is_not_null().alias("loan_comercial"),
+            col("S1275G").is_not_null().alias("loan_prestamista"),
+            col("S1275H").is_not_null().alias("loan_acopiador"),
+            col("S1275I").is_not_null().alias("loan_otro"),
+        ])
+        .drop(cols([
+            "S1275A", "S1275B", "S1275C", "S1275D", "S1275E", "S1275F", "S1275G", "S1275H",
+            "S1275I",
+        ]))
 }
 
 fn transform_parcels(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
     let lf = transform_composite_key(lf);
     lf.group_by(COMPOSITE_KEY)
         .agg([
-            col("S434").count().alias("total_parcels"),
-            col("S434A").sum().alias("mz_annual_crops"),
-            col("S434B").sum().alias("mz_permanent_crops"),
-            col("S434C").sum().alias("mz_cultivated_pasture"),
-            col("S434D").sum().alias("mz_natural_pasture"),
-            col("S434E").sum().alias("mz_forest"),
-            col("S434F").sum().alias("mz_fallow"),
-            col("S434G").sum().alias("mz_infrastructure"),
-            col("S434H").sum().alias("mz_unusable"),
+            col("S434")
+                .count()
+                .cast(DataType::Float32)
+                .alias("total_parcels"),
+            col("S434A")
+                .sum()
+                .cast(DataType::Float32)
+                .alias("mz_annual_crops"),
+            col("S434B")
+                .sum()
+                .cast(DataType::Float32)
+                .alias("mz_permanent_crops"),
+            col("S434C")
+                .sum()
+                .cast(DataType::Float32)
+                .alias("mz_cultivated_pasture"),
+            col("S434D")
+                .sum()
+                .cast(DataType::Float32)
+                .alias("mz_natural_pasture"),
+            col("S434E")
+                .sum()
+                .cast(DataType::Float32)
+                .alias("mz_forest"),
+            col("S434F")
+                .sum()
+                .cast(DataType::Float32)
+                .alias("mz_fallow"),
+            col("S434G")
+                .sum()
+                .cast(DataType::Float32)
+                .alias("mz_infrastructure"),
+            col("S434H")
+                .sum()
+                .cast(DataType::Float32)
+                .alias("mz_unusable"),
         ])
         .with_columns([(col("mz_annual_crops")
             + col("mz_permanent_crops")
@@ -64,19 +112,23 @@ fn transform_parcels(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
             + col("mz_fallow")
             + col("mz_infrastructure")
             + col("mz_unusable"))
+        .cast(DataType::Float32)
         .alias("total_farm_manzanas")])
 }
 
 fn transform_composite_key(lf: LazyFrame) -> LazyFrame {
     let composite_key_parsing = [
-        col("S101").cast(DataType::UInt16),
-        col("S102").cast(DataType::UInt16),
-        col("S105").cast(DataType::UInt32),
-        col("S106").cast(DataType::UInt32),
-        col("S108").cast(DataType::UInt32),
+        col("S101").cast(DataType::UInt8).alias("department_id"),
+        col("S102").cast(DataType::UInt16).alias("municipality_id"),
+        col("S105")
+            .cast(DataType::UInt32)
+            .alias("census_segment_id"),
+        col("S106").cast(DataType::UInt16).alias("farm_id"),
+        col("S108").cast(DataType::UInt8).alias("legal_status_id"),
     ];
+    let old_columns = cols(["S101", "S102", "S105", "S106", "S108"]);
 
-    lf.with_columns(composite_key_parsing)
+    lf.with_columns(composite_key_parsing).drop(old_columns)
 }
 
 fn save_parquet(df: &mut DataFrame, file_path: &PathBuf) -> Result<(), Box<dyn Error>> {

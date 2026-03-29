@@ -5,7 +5,7 @@ enter:
   zellij --layout dev.kdl
 
 build-builder-image:
-  podman build -t "integrador-3-builder:dev" -f Containerfile.builder
+  podman build -t "integrador-3-builder:dev" -f builder.Containerfile
 
 run-pipeline: 
   #!/usr/bin/env bash
