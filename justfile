@@ -10,10 +10,11 @@ build-builder-image:
 run-pipeline: 
   #!/usr/bin/env bash
   podman run --rm \
+  --userns=keep-id \
   -e CARGO_TERM_COLOR=always \
+  -e CARGO_HOME=/usr/local/cargo \
   -v "$(pwd):/workspace:Z" \
   -v cargo-target:/workspace/target \
   -v cargo-registry-cache:/usr/local/cargo/registry \
-  -w /workspace \
   localhost/integrador-3-builder:dev \
-  sh -c "cargo run"
+  cargo run

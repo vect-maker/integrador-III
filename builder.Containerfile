@@ -5,3 +5,7 @@ RUN apt-get update && apt-get install -y \
     clang \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+ENV RUSTFLAGS="-C link-arg=-fuse-ld=mold"

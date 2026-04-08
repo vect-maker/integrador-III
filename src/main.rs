@@ -36,16 +36,25 @@ fn transform_farms(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
     let mut cols_to_select: Vec<Expr> = COMPOSITE_KEY.into_iter().map(col).collect();
 
     cols_to_select.extend([
-        col("S1273"),
-        col("S1274"),
         // Load source
         col("^S1275.$"),
-        // end
+        // load requested loan
+        col("^S1274A.$"),
+        col("^S1274B.$"),
+        // parcel area
         col("S427"),
         col("S428"),
     ]);
 
-    lf.select(cols_to_select)
+    // cas parcels area columns
+    let lf = lf.with_columns([
+        col("S427").cast(DataType::Float32).alias("total_area_mz"),
+        col("S428").cast(DataType::Float32).alias("total_area_sqm"),
+    ]);
+
+    // create loan colums
+    let lf = lf
+        .select(cols_to_select)
         .with_columns([
             col("S1275A").is_not_null().alias("loan_banco"),
             col("S1275B").is_not_null().alias("loan_banco_produzcamos"),
@@ -60,7 +69,64 @@ fn transform_farms(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
         .drop(cols([
             "S1275A", "S1275B", "S1275C", "S1275D", "S1275E", "S1275F", "S1275G", "S1275H",
             "S1275I",
-        ]))
+        ]));
+
+    let lf = lf.with_columns([any_horizontal([col("^loan_.*$")])
+        .expect("Could not creae has any loan column")
+        .alias("has_any_loan")]);
+
+    // create receive and requested column
+    let lf = lf
+        .with_columns([
+            // Series A: Solicitó (Financial Demand)
+            col("S1274A1")
+                .eq(lit(1.0))
+                .fill_null(false)
+                .alias("req_crop"),
+            col("S1274A2")
+                .eq(lit(1.0))
+                .fill_null(false)
+                .alias("req_livestock"),
+            col("S1274A3")
+                .eq(lit(1.0))
+                .fill_null(false)
+                .alias("req_aquaculture"),
+            col("S1274A4")
+                .eq(lit(1.0))
+                .fill_null(false)
+                .alias("req_forestry"),
+            // Series B: Recibió (Financial Inclusion)
+            col("S1274B1")
+                .eq(lit(1.0))
+                .fill_null(false)
+                .alias("rec_crop"),
+            col("S1274B2")
+                .eq(lit(1.0))
+                .fill_null(false)
+                .alias("rec_livestock"),
+            col("S1274B3")
+                .eq(lit(1.0))
+                .fill_null(false)
+                .alias("rec_aquaculture"),
+            col("S1274B4")
+                .eq(lit(1.0))
+                .fill_null(false)
+                .alias("rec_forestry"),
+        ])
+        .drop(cols([
+            "S1274A1", "S1274A2", "S1274A3", "S1274A4", "S1274B1", "S1274B2", "S1274B3", "S1274B4",
+        ]));
+
+    let lf = lf.with_columns([
+        any_horizontal([col("^req_.*$")])
+            .expect("Could not create requested_loan")
+            .alias("requested_loan"),
+        any_horizontal([col("^rec_.*$")])
+            .expect("Could not create received_loan")
+            .alias("received_loan"),
+    ]);
+
+    lf
 }
 
 fn transform_parcels(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
