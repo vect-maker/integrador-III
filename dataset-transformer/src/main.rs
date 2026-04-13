@@ -44,17 +44,30 @@ fn transform_farms(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
         // parcel area
         col("S427"),
         col("S428"),
+        // hired workers
+        col("S1067"),
+        // total of temp and permanent workers
+        col("S1068A"),
+        col("S1069A"),
+        // has irrigation system
+        col("S538"),
+        // Tracción Animal vs. Mecanizad
+        col("S648A"),
+        col("S648B"),
     ]);
 
+    let lf = lf.select(cols_to_select);
+
     // cas parcels area columns
-    let lf = lf.with_columns([
-        col("S427").cast(DataType::Float32).alias("total_area_mz"),
-        col("S428").cast(DataType::Float32).alias("total_area_sqm"),
-    ]);
+    let lf = lf
+        .with_columns([
+            col("S427").cast(DataType::Float32).alias("total_area_mz"),
+            col("S428").cast(DataType::Float32).alias("total_area_sqm"),
+        ])
+        .drop(cols(["S427", "S428"]));
 
     // create loan colums
     let lf = lf
-        .select(cols_to_select)
         .with_columns([
             col("S1275A").is_not_null().alias("loan_banco"),
             col("S1275B").is_not_null().alias("loan_banco_produzcamos"),
@@ -125,6 +138,36 @@ fn transform_farms(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
             .expect("Could not create received_loan")
             .alias("received_loan"),
     ]);
+
+    // labor matrix
+    let lf = lf
+        .with_columns([col("S1067").eq(lit(1.0)).alias("hired_workers")])
+        .drop(cols(["S1067"]));
+
+    // total temp and permanent workers
+
+    let lf = lf
+        .with_columns([
+            col("S1068A")
+                .cast(DataType::UInt16)
+                .alias("permanent_workers_total"),
+            col("S1069A")
+                .cast(DataType::UInt16)
+                .alias("temporal_workers_total"),
+        ])
+        .drop(cols(["S1068A", "S1069A"]));
+    // has irrigation sytem
+    let lf = lf
+        .with_columns([col("S538").eq(lit(1.0)).alias("has_irrigation_system")])
+        .drop(cols(["S538"]));
+
+    // animal vs mechanized
+    let lf = lf
+        .with_columns([
+            col("S648A").eq(lit(1.0)).alias("traction_animal"),
+            col("S648B").eq(lit(2.0)).alias("traction_tractor"),
+        ])
+        .drop(cols(["S648A", "S648B"]));
 
     lf
 }
