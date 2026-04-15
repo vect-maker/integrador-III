@@ -1,13 +1,9 @@
 use polars::prelude::*;
-use serde::Deserialize;
 use std::error::Error;
 use std::fs::File;
-use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-const FARMS_METADATA: &str = "cenagro-2011-explotaciones-agropecuarias-metadata.json";
-const PARCELS_METADATA: &str = "cenagro-2011-parcelas-aprovechamiento-tierra-metadata.json";
 const FARMS_RAW: &str = "cenagro-2011-explotaciones-agropecuarias.parquet";
 const PARCELS_RAW: &str = "cenagro-2011-parcelas-aprovechamiento-tierra.parquet";
 const COMPOSITE_KEY: [&str; 5] = [
@@ -18,12 +14,6 @@ const COMPOSITE_KEY: [&str; 5] = [
     "legal_status_id",
 ];
 
-#[derive(Deserialize, Debug)]
-struct SPSSMetadata {
-    variable_value_labels: serde_json::Value,
-    column_names_to_labels: serde_json::Value,
-}
-
 fn load_data(file_name: &str) -> LazyFrame {
     let file_path = resolve_data_folder(file_name);
     let file_path =
@@ -32,7 +22,7 @@ fn load_data(file_name: &str) -> LazyFrame {
     LazyFrame::scan_parquet(file_path, Default::default()).expect("Could not load parcels data")
 }
 
-fn transform_farms(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
+fn transform_farms(lf: LazyFrame) -> LazyFrame {
     let lf = transform_composite_key(lf);
     let mut cols_to_select: Vec<Expr> = COMPOSITE_KEY.into_iter().map(col).collect();
 
@@ -282,7 +272,7 @@ fn transform_farms(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
         .drop(cols(["S324"]))
 }
 
-fn transform_parcels(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
+fn transform_parcels(lf: LazyFrame) -> LazyFrame {
     let lf = transform_composite_key(lf);
     lf.group_by(COMPOSITE_KEY)
         .agg([
@@ -360,12 +350,6 @@ fn save_parquet(df: &mut DataFrame, file_path: &PathBuf) -> Result<(), Box<dyn E
     Ok(())
 }
 
-fn load_metadata(file_path: &PathBuf) -> SPSSMetadata {
-    let file = File::open(file_path).expect("Could not find the metadata file");
-    let reader = BufReader::new(file);
-    serde_json::from_reader(reader).expect("Could not parse the metadata")
-}
-
 fn resolve_data_folder<T: AsRef<Path>>(sub_path: T) -> PathBuf {
     let prefix_path = Path::new("data");
 
@@ -380,19 +364,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let lf_farms = load_data(FARMS_RAW);
     let lf_parcels = load_data(PARCELS_RAW);
 
-    // Load metadata
-    let farms_metadata_path = resolve_data_folder(FARMS_METADATA);
-    let farms_metadata = load_metadata(&farms_metadata_path);
-
-    let parcels_metadata_path = resolve_data_folder(PARCELS_METADATA);
-    let parcels_metadata = load_metadata(&parcels_metadata_path);
-
     // Transform farms
-    let mut lf_farms = transform_farms(lf_farms, &farms_metadata).collect()?;
+    let mut lf_farms = transform_farms(lf_farms).collect()?;
     save_parquet(&mut lf_farms, &resolve_data_folder("farms.parquet"))?;
 
     // Transform parcels
-    let mut lf_parcels = transform_parcels(lf_parcels, &parcels_metadata).collect()?;
+    let mut lf_parcels = transform_parcels(lf_parcels).collect()?;
     save_parquet(&mut lf_parcels, &resolve_data_folder("parcels.parquet"))?;
 
     println!("Finished processing");
