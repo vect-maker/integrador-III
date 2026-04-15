@@ -4,6 +4,7 @@ use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 const FARMS_METADATA: &str = "cenagro-2011-explotaciones-agropecuarias-metadata.json";
 const PARCELS_METADATA: &str = "cenagro-2011-parcelas-aprovechamiento-tierra-metadata.json";
@@ -54,6 +55,11 @@ fn transform_farms(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
         // Tracción Animal vs. Mecanizad
         col("S648A"),
         col("S648B"),
+        // Demographics
+        col("S211D"),
+        col("S322"),
+        // main activity
+        col("S324"),
     ]);
 
     let lf = lf.select(cols_to_select);
@@ -169,7 +175,111 @@ fn transform_farms(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
         ])
         .drop(cols(["S648A", "S648B"]));
 
-    lf
+    // add producer
+    let category_names = ["hommbre", "mujer", "ignorado"];
+    let producer_gender_old = lit(Series::new("keys".into(), &[1, 2, 9]));
+    let producer_gender_new = lit(Series::new("vals".into(), category_names));
+
+    let gender_categories = FrozenCategories::new(category_names.to_vec())
+        .expect("Failed to create FrozenCategories of producer gender");
+
+    let gender_structure_dtype = DataType::Enum(
+        gender_categories.clone(),
+        gender_categories.mapping().clone(),
+    );
+    let lf: LazyFrame = lf
+        .with_columns([col("S211D")
+            .cast(DataType::UInt8)
+            .replace_strict(
+                producer_gender_old,
+                producer_gender_new,
+                Some(lit("ignorado")),
+                Some(DataType::String),
+            )
+            .cast(gender_structure_dtype)
+            .alias("producer_gender")])
+        .drop(cols(["S211D"]));
+
+    // add operation structure
+    let category_names = [
+        "individual",
+        "cooperativa",
+        "colectivo_familiar",
+        "empresa",
+        "comunidad_indigena",
+        "administracion_publica",
+        "otra",
+        "ignorado",
+    ];
+
+    let work_structure_old = lit(Series::new("keys".into(), &[1, 2, 3, 4, 5, 6, 7, 9]));
+    let work_structure_new = lit(Series::new("vals".into(), &category_names));
+
+    let operational_categories = FrozenCategories::new(category_names.to_vec())
+        .expect("Failed to create FrozenCategories of operational_structure");
+
+    let operational_structure_dtype = DataType::Enum(
+        operational_categories.clone(),
+        operational_categories.mapping().clone(),
+    );
+
+    let lf: LazyFrame = lf
+        .with_columns([col("S322")
+            .cast(DataType::UInt8)
+            .replace_strict(
+                work_structure_old,
+                work_structure_new,
+                Some(lit("ignorado")),
+                Some(DataType::String),
+            )
+            .cast(operational_structure_dtype)
+            .alias("farm_operational_structure")])
+        .drop(cols(["S322"]));
+    // add activities
+    let activity_category_names = [
+        "autoconsumo",
+        "mercado_interno",
+        "exportacion_tradicional",
+        "exportacion_no_tradicional",
+        "otros_agricolas",
+        "ganaderia_leche",
+        "ganaderia_carne",
+        "doble_proposito",
+        "ganaderia_menor",
+        "crianza",
+        "otros_pecuarios",
+        "acuicola",
+        "forestal",
+        "apicola",
+        "abandono_inactiva",
+        "ignorado",
+    ];
+
+    let principal_activity_old = lit(Series::new(
+        "keys".into(),
+        &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 99],
+    ));
+    let principal_activity_new = lit(Series::new("vals".into(), &activity_category_names));
+
+    let activity_categories = FrozenCategories::new(activity_category_names.to_vec())
+        .expect("Failed to create FrozenCategories of principal activity");
+
+    let activity_structure_dtype = DataType::Enum(
+        activity_categories.clone(),
+        activity_categories.mapping().clone(),
+    );
+
+    lf.with_columns([col("S324")
+        .cast(DataType::UInt8)
+        .replace_strict(
+            principal_activity_old,
+            principal_activity_new,
+            Some(lit("ignorado")),
+            Some(DataType::String),
+        )
+        .cast(activity_structure_dtype)
+        .alias("principal_activity")])
+        .drop(cols(["S324"]))
 }
 
 fn transform_parcels(lf: LazyFrame, _metadata: &SPSSMetadata) -> LazyFrame {
@@ -263,6 +373,9 @@ fn resolve_data_folder<T: AsRef<Path>>(sub_path: T) -> PathBuf {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    println!("Starting processing of data");
+    let start = Instant::now();
+
     // Load data
     let lf_farms = load_data(FARMS_RAW);
     let lf_parcels = load_data(PARCELS_RAW);
@@ -282,5 +395,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut lf_parcels = transform_parcels(lf_parcels, &parcels_metadata).collect()?;
     save_parquet(&mut lf_parcels, &resolve_data_folder("parcels.parquet"))?;
 
+    println!("Finished processing");
+    println!("Pipeline execution time: {:?}", start.elapsed());
     Ok(())
 }
