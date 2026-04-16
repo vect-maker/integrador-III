@@ -42,18 +42,27 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Load data
     let lf_farms = load_data(&app_env.farms_path);
     let lf_parcels = load_data(&app_env.parcels_path);
+    let lf_farms = farms::transform_farms(lf_farms);
+    let lf_parcels = parcels::transform_parcels(lf_parcels);
 
-    // Transform farms
-    let mut lf_farms = farms::transform_farms(lf_farms).collect()?;
+    // join data
+    let join_keys: Vec<Expr> = composite_key::COMPOSITE_KEY
+        .iter()
+        .map(|&name| col(name))
+        .collect();
+
+    let lf_farms = lf_farms.join(
+        lf_parcels,
+        join_keys.clone(),
+        join_keys,
+        JoinArgs::new(JoinType::Inner),
+    );
+
+    let lf_farms = composite_key::add_composite_key_data(lf_farms);
+
+    let mut lf_farms = lf_farms.collect()?;
+
     save_parquet(&mut lf_farms, &resolve_data_folder("data/farms.parquet"))?;
-
-    // Transform parcels
-    let mut lf_parcels = parcels::transform_parcels(lf_parcels).collect()?;
-    save_parquet(
-        &mut lf_parcels,
-        &resolve_data_folder("data/parcels.parquet"),
-    )?;
-
     println!("Finished processing");
     println!("Pipeline execution time: {:?}", start.elapsed());
     Ok(())

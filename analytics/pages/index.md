@@ -29,7 +29,7 @@ FROM global_summary
 <Grid cols=3>
     <BigValue 
       data={global_summary} 
-      value=total_farms 
+      value=total_farms base
       title="Total de Explotaciones" 
       fmt="num0"
     />

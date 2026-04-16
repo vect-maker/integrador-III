@@ -3,6 +3,7 @@ use polars::prelude::*;
 
 pub fn transform_parcels(lf: LazyFrame) -> LazyFrame {
     let lf = transform_composite_key(lf);
+
     lf.group_by(COMPOSITE_KEY)
         .agg([
             col("S434")

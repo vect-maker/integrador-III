@@ -3,6 +3,7 @@ use polars::prelude::*;
 
 pub fn transform_farms(lf: LazyFrame) -> LazyFrame {
     let lf = transform_composite_key(lf);
+
     let mut cols_to_select: Vec<Expr> = COMPOSITE_KEY.into_iter().map(col).collect();
 
     cols_to_select.extend([

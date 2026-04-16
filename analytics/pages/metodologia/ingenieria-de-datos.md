@@ -1,6 +1,12 @@
+```sql global_summary
+SELECT 
+    total_farms,    
+FROM global_summary
+```
+
 # Ingeniería de Datos: Metodología y Arquitectura
 
-Este documento técnico detalla la infraestructura, el diseño del pipeline y las decisiones de ingeniería tomadas para procesar los más de 226,000 registros del CENAGRO 2011 de manera eficiente y reproducible.
+Este documento técnico detalla la infraestructura, el diseño del pipeline y las decisiones de ingeniería tomadas para procesar los **{fmt(global_summary[0].total_farms, 'num0')}** registros del CENAGRO 2011 de manera eficiente y reproducible.
 
 ---
 
@@ -33,7 +39,7 @@ Para las consultas de investigación, se emplea **DuckDB**. Este motor permite r
 
 ## Estrategia de Business Intelligence (BI)
 
-Dado que el volumen de datos supera los 226,000 registros, la transmisión directa al navegador comprometería la experiencia del usuario.
+Dado que el volumen de datos con **{fmt(global_summary[0].total_farms, 'num0')}** registros, la transmisión directa al navegador comprometería la experiencia del usuario.
 
 * **Materialización Estática:** Se utiliza **Evidence.dev** para realizar la agregación de datos durante el tiempo de compilación.
 * **Tablas de Resumen:** Las métricas principales se precomputan y se materializan en tablas de resumen. Esto evita bloqueos en el navegador, ya que los gráficos interactivos consumen únicamente los resultados procesados y no la base de datos completa.

@@ -1,1 +1,0 @@
- SELECT farm_operational_structure , COUNT(*) AS count FROM farms GROUP BY farm_operational_structure ORDER BY count DESC;
