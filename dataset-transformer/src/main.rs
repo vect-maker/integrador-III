@@ -145,9 +145,11 @@ fn transform_farms(lf: LazyFrame) -> LazyFrame {
     let lf = lf
         .with_columns([
             col("S1068A")
+                .fill_null(0)
                 .cast(DataType::UInt16)
                 .alias("permanent_workers_total"),
             col("S1069A")
+                .fill_null(0)
                 .cast(DataType::UInt16)
                 .alias("temporal_workers_total"),
         ])
@@ -166,7 +168,7 @@ fn transform_farms(lf: LazyFrame) -> LazyFrame {
         .drop(cols(["S648A", "S648B"]));
 
     // add producer
-    let category_names = ["hommbre", "mujer", "ignorado"];
+    let category_names = ["hombre", "mujer", "ignorado"];
     let producer_gender_old = lit(Series::new("keys".into(), &[1, 2, 9]));
     let producer_gender_new = lit(Series::new("vals".into(), category_names));
 

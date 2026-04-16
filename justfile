@@ -11,7 +11,7 @@ add-meta-bi:
     podman run -it --rm \
       -v ./analytics:/app:Z \
       -w /app \
-      evidence-dev-image npm run sources
+      evidence-dev-image npm run sources -- --changed
 
 run-bi:
     -podman rm -f evidence-dev
@@ -19,7 +19,7 @@ run-bi:
     --name evidence-dev \
     -p 3000:3000 \
     -v ./analytics:/app:Z \
-    evidence-dev-image
+    evidence-dev-image /bin/sh -c "npm run sources -- --watch & npm run dev -- --host 0.0.0.0"
 
 build-bi:
   podman run -it --rm \
