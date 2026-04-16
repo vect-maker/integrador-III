@@ -35,6 +35,11 @@ run-pipeline:
     --userns=keep-id \
     --security-opt label=disable \
     -v $(pwd)/data:/app/data:Z \
+    -e FARMS_PATH=data/cenagro-2011-explotaciones-agropecuarias.parquet \
+    -e PARCELS_PATH=data/cenagro-2011-parcelas-aprovechamiento-tierra.parquet \
+    -e FARMS_META_PATH=data/cenagro-2011-explotaciones-agropecuarias-metadata.json \
+    -e PARCELS_META_PATH=data/cenagro-2011-parcelas-aprovechamiento-tierra-metadata.json \
+    -e OUT_DIR=data \
     transformer-integrador-3:dev
 
 build-werehouse:
