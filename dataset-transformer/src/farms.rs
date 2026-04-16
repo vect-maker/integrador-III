@@ -1,10 +1,8 @@
-use crate::composite_key::{COMPOSITE_KEY, transform_composite_key};
+use crate::composite_key::{COMPOSITE_KEY_CODES, transform_composite_key};
 use polars::prelude::*;
 
 pub fn transform_farms(lf: LazyFrame) -> LazyFrame {
-    let lf = transform_composite_key(lf);
-
-    let mut cols_to_select: Vec<Expr> = COMPOSITE_KEY.into_iter().map(col).collect();
+    let mut cols_to_select: Vec<Expr> = COMPOSITE_KEY_CODES.into_iter().map(col).collect();
 
     cols_to_select.extend([
         // Load source
@@ -33,7 +31,8 @@ pub fn transform_farms(lf: LazyFrame) -> LazyFrame {
     ]);
 
     let lf = lf.select(cols_to_select);
-
+    // transform composite key
+    let lf = transform_composite_key(lf);
     // cas parcels area columns
     let lf = lf
         .with_columns([

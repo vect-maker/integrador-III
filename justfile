@@ -29,6 +29,8 @@ build-bi:
 
 run-pipeline:
     #!/usr/bin/env bash
+    set -euo pipefail
+
     podman build -f infra/transformer.Containerfile -t transformer-integrador-3:dev ./dataset-transformer/
     
     podman run -it --rm \

@@ -6,6 +6,7 @@ use std::time::Instant;
 mod composite_key;
 mod env;
 mod farms;
+mod mappings;
 mod parcels;
 
 fn load_data(file_name: &str) -> LazyFrame {
@@ -42,8 +43,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Load data
     let lf_farms = load_data(&app_env.farms_path);
     let lf_parcels = load_data(&app_env.parcels_path);
-    let lf_farms = farms::transform_farms(lf_farms);
-    let lf_parcels = parcels::transform_parcels(lf_parcels);
+    let mut lf_farms = farms::transform_farms(lf_farms).collect()?;
+    let mut lf_parcels = parcels::transform_parcels(lf_parcels).collect()?;
+
+    save_parquet(
+        &mut lf_farms,
+        &resolve_data_folder("data/farms_raw.parquet"),
+    )?;
+    save_parquet(
+        &mut lf_parcels,
+        &resolve_data_folder("data/parcels_raw.parquet"),
+    )?;
+
+    let lf_farms = lf_farms.lazy();
+    let lf_parcels = lf_parcels.lazy();
 
     // join data
     let join_keys: Vec<Expr> = composite_key::COMPOSITE_KEY
@@ -58,9 +71,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         JoinArgs::new(JoinType::Inner),
     );
 
-    let lf_farms = composite_key::add_composite_key_data(lf_farms);
-
     let mut lf_farms = lf_farms.collect()?;
+    // save data
 
     save_parquet(&mut lf_farms, &resolve_data_folder("data/farms.parquet"))?;
     println!("Finished processing");
