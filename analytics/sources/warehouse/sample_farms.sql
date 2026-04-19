@@ -1,6 +1,6 @@
 SELECT 
-    department_id, 
-    municipality_id, 
+    department, 
+    municipality, 
     farm_operational_structure,
     principal_activity, 
     total_area_mz, 

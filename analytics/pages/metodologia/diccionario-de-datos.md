@@ -112,8 +112,8 @@ Contiene el desglose detallado del aprovechamiento de la tierra.
 
 ```sql sample_farms
 SELECT 
-    department_id AS id_departamento, 
-    municipality_id AS id_municipio, 
+    department AS departamento, 
+    municipality AS municipio, 
     farm_operational_structure AS estructura_operacional,
     principal_activity AS actividad_principal, 
     total_area_mz AS area_total_mz, 
