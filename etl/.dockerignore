@@ -1,0 +1,4 @@
+target/
+.git/
+*.parquet
+*.mp3

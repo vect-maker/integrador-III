@@ -27,7 +27,20 @@ build-bi:
   -w /app \
   evidence-dev-image npm run build
 
-run-pipeline:
+build-pipeline:
+  podman build -f infra/transformer.Containerfile -t transformer-integrador-3:dev ./etl
+
+run-pipeline: 
+    podman run -it --rm \
+    --userns=keep-id \
+    --security-opt label=disable \
+    -v $(pwd)/data:/app/data:Z \
+    -e FARMS_PATH=data/cenagro-2011-explotaciones-agropecuarias.parquet \
+    -e PARCELS_PATH=data/cenagro-2011-parcelas-aprovechamiento-tierra.parquet \
+    -e OUT_DIR=data \
+    transformer-integrador-3:dev
+
+run-legacy-pipeline:
     #!/usr/bin/env bash
     set -euo pipefail
 

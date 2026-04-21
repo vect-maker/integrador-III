@@ -1,0 +1,10 @@
+[package]
+name = "etl"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0"
+datafusion = "53.1.0"
+snmalloc-rs = { version = "0.7", features = ["native-cpu"] }
+tokio = { version = "1.51", features = ["rt-multi-thread", "macros"] }
