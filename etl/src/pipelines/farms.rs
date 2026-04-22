@@ -1,7 +1,7 @@
 use crate::loaders::load_data;
 use crate::saver;
 use crate::schema;
-use crate::transformers;
+use crate::transformers::farms;
 use anyhow::Result;
 use datafusion::prelude::*;
 
@@ -14,7 +14,11 @@ pub async fn run_farms_pipeline(
     let df = schema::farms::apply_farms_schema(df)?;
 
     // apply transfromations
-    let df = transformers::farms::apply_labor_ratios(df)?;
+    let df = farms::apply_labor_ratios(df)?;
+    let df = farms::apply_credit_logic(df)?;
+    let df = farms::apply_gender_mapping(df)?;
+    let df = farms::apply_operational_structure_mapping(df)?;
+    let df = farms::apply_principal_activity_mapping(df)?;
 
     saver::save_data(df.clone(), &format!("{}/{}", out_dir, "farms_raw.parquet")).await?;
 

@@ -1,5 +1,6 @@
 pub mod dataframe;
 pub mod env;
+pub mod helpers;
 pub mod loaders;
 pub mod mappings;
 pub mod pipelines;
