@@ -1,9 +1,7 @@
 use anyhow::Result;
 use datafusion::prelude::*;
 use etl::env;
-use etl::loaders::{load_farms_data, load_parcels_data};
-use etl::saver;
-use etl::schema;
+use etl::pipelines;
 use std::time::Instant;
 
 #[global_allocator]
@@ -18,23 +16,13 @@ async fn main() -> Result<()> {
     let app_config = env::load_config()?;
     let ctx = SessionContext::new();
 
-    // load parquet files
-    let farms_df = load_farms_data(&ctx, &app_config.farms_path).await?;
-    let parcels_df = load_parcels_data(&ctx, &app_config.parcels_path).await?;
-
-    // apply schema
-    let farms_df = schema::farms::apply_farms_schema(farms_df)?;
-    let parcels_df = schema::parcels::apply_parcels_schema(parcels_df)?;
-
-    // save daa
-    saver::save_data(
-        farms_df,
-        &format!("{}/{}", app_config.out_dir, "farms_raw.parquet"),
-    )
-    .await?;
-    saver::save_data(
-        parcels_df,
-        &format!("{}/{}", app_config.out_dir, "parcels_raw.parquet"),
+    // run pipelines
+    let _ = pipelines::farms::run_farms_pipeline(&ctx, &app_config.farms_path, &app_config.out_dir)
+        .await?;
+    let _ = pipelines::parcels::run_parcels_pipeline(
+        &ctx,
+        &app_config.parcels_path,
+        &app_config.out_dir,
     )
     .await?;
 

@@ -1,3 +1,4 @@
+use crate::dataframe::DataFrameExt;
 use crate::mappings::composite_key::{COMPOSITE_KEY, COMPOSITE_KEY_CODES};
 use crate::mappings::{departments, municipality};
 use anyhow::{Context, Result};
@@ -19,18 +20,14 @@ pub fn apply_composite_key_schema(df: DataFrame) -> Result<DataFrame> {
     let dept_map = build_department_expr();
     let muni_map = build_municipality_expr();
 
-    let mut projection: Vec<Expr> = df.schema().fields().iter().map(|f| col(f.name())).collect();
-
-    projection.extend(vec![
-        dept_map.alias("department"),
-        muni_map.alias("municipality"),
-        cast(col("s105"), DataType::UInt8).alias("supervision_area_id"),
-        cast(col("s106"), DataType::UInt16).alias("census_segment_id"),
-        cast(col("s108"), DataType::UInt16).alias("farm_id"),
-    ]);
-
     let df = df
-        .select(projection)
+        .with_columns(vec![
+            dept_map.alias("department"),
+            muni_map.alias("municipality"),
+            cast(col("s105"), DataType::UInt8).alias("supervision_area_id"),
+            cast(col("s106"), DataType::UInt16).alias("census_segment_id"),
+            cast(col("s108"), DataType::UInt16).alias("farm_id"),
+        ])
         .context("Failed to project composite key columns")?;
 
     let df = df.drop_columns(&["s101", "s102", "s105", "s106", "s108"])?;

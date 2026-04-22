@@ -10,8 +10,6 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY . .
-
 ENV CARGO_TERM_COLOR=always
 ENV CC=clang
 ENV CXX=clang++
