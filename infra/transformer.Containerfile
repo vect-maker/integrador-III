@@ -1,21 +1,4 @@
-FROM rust:1.95-slim-bookworm AS builder
-
-RUN apt-get update && apt-get install -y \
-    mold \
-    clang \
-    build-essential \
-    cmake \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-COPY . .
-
-ENV CARGO_TERM_COLOR=always
-ENV CC=clang
-ENV CXX=clang++
-ENV RUSTFLAGS="-C link-arg=-fuse-ld=mold -C target-cpu=native"
+FROM localhost/compiler-integrador-3:dev AS builder
 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \

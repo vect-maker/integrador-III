@@ -27,6 +27,10 @@ build-bi:
   -w /app \
   evidence-dev-image npm run build
 
+
+build-compiler:
+  podman build -f infra/compiler.Containerfile -t compiler-integrador-3:dev ./etl
+
 build-pipeline:
   podman build -f infra/transformer.Containerfile -t transformer-integrador-3:dev ./etl
 
