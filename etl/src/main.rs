@@ -17,11 +17,20 @@ async fn main() -> Result<()> {
     let ctx = SessionContext::new();
 
     // run pipelines
-    let _ = pipelines::farms::run_farms_pipeline(&ctx, &app_config.farms_path, &app_config.out_dir)
-        .await?;
-    let _ = pipelines::parcels::run_parcels_pipeline(
+    let farms =
+        pipelines::farms::run_farms_pipeline(&ctx, &app_config.farms_path, &app_config.out_dir)
+            .await?;
+    let parcels = pipelines::parcels::run_parcels_pipeline(
         &ctx,
         &app_config.parcels_path,
+        &app_config.out_dir,
+    )
+    .await?;
+
+    let _ = pipelines::dataset_join::run_dataset_join_pipeline(
+        &ctx,
+        farms,
+        parcels,
         &app_config.out_dir,
     )
     .await?;
